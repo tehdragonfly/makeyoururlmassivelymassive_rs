@@ -1,16 +1,24 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+#[macro_use] extern crate diesel;
 #[macro_use] extern crate rocket;
 #[macro_use] extern crate rocket_contrib;
 
+mod models;
+mod schema;
+
 use std::collections::HashMap;
 
-use rocket_contrib::databases::diesel;
+use diesel::PgConnection;
+use diesel::prelude::*;
+use rocket::response::Redirect;
 use rocket_contrib::templates::Template;
+
+use models::MassiveURL;
 
 
 #[database("default")]
-struct DefaultDatabase(diesel::PgConnection);
+struct DefaultDatabase(PgConnection);
 
 
 #[get("/")]
@@ -20,9 +28,19 @@ fn index() -> Template {
 }
 
 
-#[get("/<path>")]
-fn redirect(conn: DefaultDatabase, path: String) -> String {
-    path
+#[get("/<path_param>")]
+fn redirect(conn: DefaultDatabase, path_param: String) -> Option<Redirect> {
+    use schema::massive_urls::dsl::*;
+    let result = massive_urls.filter(path.eq(&path_param))
+        .limit(1)
+        .load::<MassiveURL>(&*conn)
+        .unwrap()
+        .into_iter().nth(0);
+
+    match result {
+        Some(url) => Some(Redirect::to(url.destination)),
+        None      => None,
+    }
 }
 
 
