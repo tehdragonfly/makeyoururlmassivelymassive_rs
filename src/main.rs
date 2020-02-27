@@ -11,6 +11,9 @@ use std::collections::HashMap;
 
 use diesel::PgConnection;
 use diesel::prelude::*;
+use rocket::http::RawStr;
+use rocket::request::Form;
+use rocket::request::FromFormValue;
 use rocket::response::Redirect;
 use rocket_contrib::templates::Template;
 
@@ -25,6 +28,44 @@ struct DefaultDatabase(PgConnection);
 fn index() -> Template {
     let context: HashMap<&str, &str> = HashMap::new();
     Template::render("index", context)
+}
+
+
+struct ValidatedUrl(String);
+
+
+impl<'v> FromFormValue<'v> for ValidatedUrl {
+    type Error = &'static str;
+    fn from_form_value(form_value: &'v RawStr) -> Result<ValidatedUrl, Self::Error> {
+        let mut decoded_string = String::from_form_value(form_value)
+            .map_err(|_| "decode error")?;
+
+        // Rewrite HTTP to HTTPS
+        if decoded_string.starts_with("http://") {
+            decoded_string.insert(4, 's');
+        }
+
+        // Don't allow javascript:, data: etc.
+        if !decoded_string.starts_with("https://") {
+            return Err("not HTTPS");
+        }
+
+        Ok(ValidatedUrl(decoded_string))
+    }
+}
+
+
+#[derive(FromForm)]
+struct URLForm {
+    url: ValidatedUrl,
+}
+
+
+#[post("/", data="<form>")]
+fn create(form: Form<URLForm>) -> Template {
+    let mut context: HashMap<&str, &str> = HashMap::new();
+    context.insert("url", &form.url.0);
+    Template::render("result", context)
 }
 
 
@@ -47,6 +88,7 @@ fn redirect(conn: DefaultDatabase, path_param: String) -> Option<Redirect> {
 fn main() {
     rocket::ignite()
         .mount("/", routes![index])
+        .mount("/", routes![create])
         .mount("/", routes![redirect])
         .attach(DefaultDatabase::fairing())
         .attach(Template::fairing())
