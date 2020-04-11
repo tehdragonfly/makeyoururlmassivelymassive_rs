@@ -12,8 +12,12 @@ use std::collections::HashMap;
 use diesel::PgConnection;
 use diesel::prelude::*;
 use rocket::http::RawStr;
+use rocket::http::Status;
 use rocket::request::Form;
 use rocket::request::FromFormValue;
+use rocket::request::FromRequest;
+use rocket::request::Outcome;
+use rocket::request::Request;
 use rocket::response::Redirect;
 use rocket_contrib::templates::Template;
 
@@ -61,10 +65,25 @@ struct URLForm {
 }
 
 
+struct Host(String);
+
+impl<'a, 'r> FromRequest<'a, 'r> for Host {
+    type Error = &'static str;
+    fn from_request(request: &'a Request<'r>) -> Outcome<Self, Self::Error> {
+        let headers = request.headers();
+        match headers.get_one("Host") {
+            Some(host) => Outcome::Success(Host(host.to_string())),
+            None => Outcome::Failure((Status::BadRequest, "no host header")),
+        }
+    }
+}
+
+
 #[post("/", data="<form>")]
-fn create(form: Form<URLForm>) -> Template {
+fn create(host: Host, form: Form<URLForm>) -> Template {
     let mut context: HashMap<&str, &str> = HashMap::new();
-    context.insert("url", &form.url.0);
+    context.insert("host", &host.0);
+    context.insert("destination_url", &form.url.0);
     Template::render("result", context)
 }
 
