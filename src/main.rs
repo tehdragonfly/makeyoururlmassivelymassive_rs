@@ -9,6 +9,8 @@ mod schema;
 
 use std::collections::HashMap;
 
+use crypto::digest::Digest;
+use crypto::sha2::Sha512;
 use diesel::PgConnection;
 use diesel::prelude::*;
 use rocket::http::RawStr;
@@ -22,6 +24,7 @@ use rocket::response::Redirect;
 use rocket_contrib::templates::Template;
 
 use models::MassiveURL;
+use schema::massive_urls;
 
 
 #[database("default")]
@@ -80,10 +83,24 @@ impl<'a, 'r> FromRequest<'a, 'r> for Host {
 
 
 #[post("/", data="<form>")]
-fn create(host: Host, form: Form<URLForm>) -> Template {
+fn create(conn: DefaultDatabase, host: Host, form: Form<URLForm>) -> Template {
+    let mut hash = Sha512::new();
+    hash.input_str(&form.url.0);
+
+    let new_url = MassiveURL {
+        id: None,
+        path: hash.result_str(),
+        destination: form.url.0.clone(),
+    };
+    diesel::insert_into(massive_urls::table)
+        .values(&new_url)
+        .execute(&*conn)
+        .unwrap();
+
     let mut context: HashMap<&str, &str> = HashMap::new();
     context.insert("host", &host.0);
-    context.insert("destination_url", &form.url.0);
+    context.insert("path", &new_url.path);
+    context.insert("destination", &new_url.destination);
     Template::render("result", context)
 }
 

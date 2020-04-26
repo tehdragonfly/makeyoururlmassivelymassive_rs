@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 diesel = { version = "1.4.3", features = ["postgres"] }
 rocket = "0.4.2"
+rust-crypto = "0.2.36"
 
 [dependencies.rocket_contrib]
 version = "0.4.2"

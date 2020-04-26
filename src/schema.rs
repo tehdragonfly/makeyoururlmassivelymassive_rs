@@ -1,6 +1,6 @@
 table! {
     massive_urls (id) {
-        id -> Int4,
+        id -> Nullable<Int4>,
         path -> Varchar,
         destination -> Varchar,
     }
